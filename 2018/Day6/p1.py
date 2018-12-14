@@ -1,8 +1,5 @@
 import operator
-import math
-import re
-
-pattern = re.compile("(\d{1,3}), (\d{1,3})")
+import c
 
 # A city made of blocks. Divded into neighborhoods.
 class City:
@@ -19,7 +16,6 @@ class Block:
 		self.x = x
 		self.y = y
 		self.neighborhood = None
-		self.made = False
 
 	# Returns a list of adjacent blocks.
 	def getNeighbors(self):
@@ -28,7 +24,6 @@ class Block:
 	# Attempt to claim neighboring blocks for this block's neighborhood
 	def claimNeighbors(self):
 		self.claimed_neighbors = []
-		self.made = True
 		for neighbor in self.getNeighbors():
 			if neighbor.claim(self.neighborhood):
 				self.claimed_neighbors.append(neighbor)
@@ -39,7 +34,6 @@ class Block:
 		for neighbor in self.claimed_neighbors:
 			if neighbor.checkClaim() == self.neighborhood:
 				claimed.append(neighbor)
-		self.made = False
 		return claimed
 
 	# Attempt to claim this block for a given neighborhood.
@@ -87,35 +81,6 @@ class EdgeBlock(Block):
 			del self.city.neighborhood_sizes[neighborhood]
 		return neighborhood
 
-
-# Parse an input file with city neighborhood centers
-def parseInput(file):
-	with open(file) as input:
-		lines = input.readlines()
-
-	neighborhood_centers = []
-	xmax = -math.inf
-	xmin = math.inf
-	ymax = -math.inf
-	ymin = math.inf
-	for line in lines:
-		m = pattern.match(line)
-		center = (int(m.group(1)), int(m.group(2)))
-
-		# Track min and max value.
-		if center[0] > xmax:
-			xmax = center[0]
-		if center[0] < xmin:
-			xmin = center[0]
-		if center[1] > ymax:
-			ymax = center[1]
-		if center[1] < ymin:
-			ymin = center[1]
-
-		neighborhood_centers.append(center)
-
-	return (neighborhood_centers, xmax, xmin, ymax, ymin)
-
 # Create a city with blocks
 def createCity(xmax, xmin, ymax, ymin):
 	
@@ -147,8 +112,8 @@ def createCity(xmax, xmin, ymax, ymin):
 
 def createCityWithNeighborhoods(file):
 
-	# Read in a list of characters. Remove all pairs that are the same letter with opposite capitalization.
-	result = parseInput("i1.txt")
+	# Read in a list of coordinates.
+	result = c.parseInput("i1.txt")
 
 	neighborhood_centers = result[0]
 	xmax = result [1]
@@ -187,4 +152,4 @@ def createCityWithNeighborhoods(file):
 city = createCityWithNeighborhoods("i1.txt")
 
 largest_neighborhood = max(city.neighborhood_sizes.items(), key=operator.itemgetter(1))
-print(largest_neighborhood)
+print(largest_neighborhood[1])
