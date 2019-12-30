@@ -6,19 +6,18 @@ opCodePattern = re.compile("(\d*?)(\d{1,2})$")
 class Instruction: 
     def __init__(self):
         self.parameters = 0
-        self.result = True
-        self.output = False
-        self.jumps = False
+        self.resultMode = 0
 
     # Returns the size of the instruction.
     def size(self):
-        return 1 + self.parameters + (1 if self.result else 0)
-
+        return 1 + self.parameters + (1 if self.resultMode == 1 else 0)
+ 
 # A class that represents an Add instruction for the Intcode computer.
 class Add(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
+        self.resultMode = 1
 
     # Executes the instruction.
     def execute(self, params):
@@ -29,6 +28,7 @@ class Multiply(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
+        self.resultMode = 1
 
     # Executes the instruction.
     def execute(self, params):
@@ -38,6 +38,7 @@ class Multiply(Instruction):
 class Input(Instruction):
     def __init__(self, input):
         super().__init__()
+        self.resultMode = 1
         self.input = input
     
     # Executes the instruction.
@@ -49,8 +50,7 @@ class Output(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 1
-        self.result = False
-        self.output = True
+        self.resultMode = 2
 
     # Executes the instruction.
     def execute(self, params):
@@ -61,8 +61,7 @@ class JumpIfTrue(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
-        self.result = False
-        self.jumps = True
+        self.resultMode = 3
 
     # Executes the instruction.
     def execute(self, params):
@@ -73,8 +72,7 @@ class JumpIfFalse(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
-        self.result = False
-        self.jumps = True
+        self.resultMode = 3
 
     # Executes the instruction.
     def execute(self, params):
@@ -85,6 +83,7 @@ class LessThan(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
+        self.resultMode = 1
 
     # Executes the instruction.
     def execute(self, params):
@@ -95,10 +94,23 @@ class Equals(Instruction):
     def __init__(self):
         super().__init__()
         self.parameters = 2
+        self.resultMode = 1
 
     # Executes the instruction.
     def execute(self, params):
         return 1 if params[0] == params[1] else 0
+
+# A class that represents a Set-Relative-Mode-Base-Offset instruction for the Intcode computer.
+class SetRelativeModeBaseOffset(Instruction):
+    def __init__(self, currentOffset):
+        super().__init__()
+        self.parameters = 1
+        self.resultMode = 4
+        self.currentOffset = currentOffset
+
+    # Executes the instruction.
+    def execute(self, params):
+        return self.currentOffset + params[0]
 
 # A class that represents an Intcode computer. Used by Day 2, 5, 7.
 class Computer:
@@ -117,6 +129,7 @@ class Computer:
     def resetProgram(self):
         self.program = self.programBase.copy()
         self.pc = 0
+        self.baseRelativeOffset = 0
         self.inputBuffer = []
         self.outputBuffer = []
         self.finished = False
@@ -158,22 +171,29 @@ class Computer:
             
             # Get the parameters for the instruction.
             paramModes = self.getParamModes(instruction.parameters, match[1])
-            params = self.getParams(self.pc, paramModes)
+            params = self.getParams(self.pc, paramModes[:-1])
 
             # Execute the instruction.
             result = instruction.execute(params)
 
+            # Check if the instruction writes the result.
+            if instruction.resultMode == 1:                
+                index = self.program[self.pc + size - 1]
+                if paramModes[-1] == 2:
+                    index = self.baseRelativeOffset + index
+
+                self.program[index] = result
+            
             # Check if the instruction causes an output.
-            if instruction.output:
+            elif instruction.resultMode == 2:
                 self.outputBuffer.append(result)
 
-            # Check if the instruction has result.
-            if instruction.result:
-                o = self.program[self.pc + size - 1]
-                self.program[o] = result
+            # Check if the instruction modifies the base relative offset.
+            elif instruction.resultMode == 4:
+                self.baseRelativeOffset = result
 
             # Check if the instruction modifies the program counter.
-            if instruction.jumps and result:
+            if instruction.resultMode == 3 and result != None:
                 self.pc = result
             else:
                 self.pc += size
@@ -207,13 +227,16 @@ class Computer:
 
         if code == 8:
             return Equals()
+
+        if code == 9:
+            return SetRelativeModeBaseOffset(self.baseRelativeOffset)
     
     # Gets a list of paramater modes.
     def getParamModes(self, paramCount, paramModeString):
         parameterModes = [0] * paramCount
+        parameterModes.append(1)
 
         if paramModeString:
-
             paramModeStrings = list(paramModeString)
             paramModeStrings.reverse()
 
@@ -229,11 +252,16 @@ class Computer:
 
         for mode in paramModes:
 
-            if mode == 1:
-                params.append(self.program[offset])
-            else:
-                params.append(self.program[self.program[offset]])
-
+            index = offset
+            if mode == 2:
+                index = self.baseRelativeOffset + self.program[offset]
+            elif mode == 0:
+                index = self.program[offset]
+            
+            if index not in self.program:
+                self.program[index] = 0
+            
+            params.append(self.program[index])
             offset += 1
 
         return params
